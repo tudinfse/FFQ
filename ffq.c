@@ -349,16 +349,19 @@ int mpmc_enqueue(volatile struct ffq *q, void *data) {
         } else {
             cell = &q->buffer[HASH_INDEX(rank, q->buffer_mask)];
         }
-        while ((c.gap = cell->gap) < rank) {
-            if ((c.rank = cell->rank) >= 0) {
-                exp.rank_gap = cell->rank_gap;
-                c.gap = rank; /* c.rank is set above */
+        while (1) {
+            exp = cell->rank_gap;
+            if (exp.gap >= rank) break;
+
+            if (exp.rank >= 0) {
+                c.rank = exp.rank;
+                c.gap = rank;
                 __atomic_compare_exchange_n(&cell->rank_gap, (unsigned __int128*)&exp.rank_gap,
                                             c.rank_gap, 1, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
             } else {
                 exp.rank = -1;
-                exp.gap = cell->gap;
-                c.rank = -2; /* c.gap is set above */
+                c.rank = -2;
+                c.gap = exp.gap;
                 if (__atomic_compare_exchange_n(&cell->rank_gap, (unsigned __int128 *)&exp.rank_gap,
                                                 c.rank_gap, 1, __ATOMIC_RELAXED, __ATOMIC_RELAXED)) {
                     cell->data = data;
